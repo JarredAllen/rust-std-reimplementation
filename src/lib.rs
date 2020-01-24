@@ -8,7 +8,7 @@ use std::ptr::{NonNull, self};
 /// purely for pedagogigal value, and is not something worth actually
 /// using.
 pub struct Vec<T> {
-    pointer: Option<NonNull<T>>,
+    pointer: NonNull<T>,
     capacity: usize,
     length: usize,
 }
@@ -17,7 +17,7 @@ impl<T> Vec<T> {
     /// Create a new empty Vec
     pub fn new() -> Self {
         assert!(mem::size_of::<T>() != 0, "Zero-length types not yet implemented");
-        Vec { pointer: NonNull::new(ptr::null_mut()), capacity: 0, length: 0 }
+        Vec { pointer: NonNull::dangling(), capacity: 0, length: 0 }
     }
 
     /// Resize the Vec. If it has no space allocated, it allocates space
@@ -29,7 +29,7 @@ impl<T> Vec<T> {
             let align = mem::align_of::<T>();
             let elem_size = mem::size_of::<T>();
 
-            let (new_cap, ptr) = if self.capacity == 0  || self.pointer.is_none() {
+            let (new_cap, ptr) = if self.capacity == 0 {
                 // The array was empty, so we make a new array of size 1
                 let ptr = alloc::alloc(Layout::from_size_align(elem_size, align)
                                           .expect("Error allocating Vec"));
@@ -49,7 +49,7 @@ impl<T> Vec<T> {
 
                 let new_num_bytes = old_num_bytes * 2;
                 // Here we actually reallocate the array
-                let ptr = alloc::realloc(self.pointer.unwrap().as_ptr() as *mut u8,
+                let ptr = alloc::realloc(self.pointer.as_ptr() as *mut u8,
                                             Layout::from_size_align(
                                                 old_num_bytes,
                                                 align
@@ -57,17 +57,39 @@ impl<T> Vec<T> {
                                             new_num_bytes);
                 (new_cap, ptr)
             };
-            if ptr.is_null() {
-                // We somehow ran out of memory.
-                // Given that the OS can use paging and will likely
-                // shut us down before we get to ridiculous amounts of
-                // memory, this probably means we requested far more
-                // space than exists in one go.
-                panic!("Out of memory");
-            }
 
-            self.pointer = NonNull::new(ptr as *mut T);
+            // If the expect is hit, then we somehow ran out of memory.
+            // Given that the OS can use paging and will likely shut us
+            // down before we get to ridiculous amounts of memory, this
+            // probably means we requested far more space than exists in
+            // one go.
+            self.pointer = NonNull::new(ptr as *mut T).expect("Out of memory in Vec reallocate");
             self.capacity = new_cap;
+        }
+    }
+
+    /// Append a value to the end of the Vec, reallocating if more space
+    /// is necessary.
+    /// Guaranteed to run in O(n) time, O(1) amortized
+    pub fn push(&mut self, element: T) {
+        if self.length == self.capacity {
+            self.grow();
+        }
+        unsafe {
+            ptr::write(self.pointer.as_ptr().add(self.length), element);
+        }
+        self.length += 1;
+    }
+
+    /// Removes the last item from the Vec and returns it
+    pub fn pop(&mut self) -> Option<T> {
+        if self.length == 0 {
+            None
+        } else {
+            self.length -= 1;
+            unsafe {
+                Some(ptr::read(self.pointer.as_ptr().add(self.length)))
+            }
         }
     }
 }
