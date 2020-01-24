@@ -93,3 +93,24 @@ impl<T> Vec<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    pub fn test_push_pop() {
+        let mut v: Vec<i64> = Vec::new();
+        v.push(1);
+        v.push(1);
+        v.push(2);
+        v.push(3);
+        v.push(5);
+        assert_eq!(v.pop(), Some(5));
+        assert_eq!(v.pop(), Some(3));
+        assert_eq!(v.pop(), Some(2));
+        v.push(17);
+        assert_eq!(v.pop(), Some(17));
+        assert_eq!(v.pop(), Some(1));
+        assert_eq!(v.pop(), Some(1));
+        assert_eq!(v.pop(), None);
+    }
+}
